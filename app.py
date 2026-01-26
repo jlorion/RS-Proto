@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
+import time
 
 # Page configuration
 st.set_page_config(
@@ -137,6 +138,7 @@ if classify_button:
     if user_input.strip():
         with st.spinner('🔄 Analyzing text...'):
             # Get prediction
+            start = time.time()
             result = predict_hatespeech(
                 text=user_input,
                 rationale=optional_rationale if optional_rationale else None,
@@ -146,6 +148,7 @@ if classify_button:
                 config=config,
                 device=device
             )
+            end = time.time()
             
             # Extract results
             prediction = result['prediction']
@@ -153,6 +156,7 @@ if classify_button:
             probabilities = result['probabilities']
             rationale_scores = result['rationale_scores']
             tokens = result['tokens']
+            processing_time = end - start
             
             # Display results
             st.divider()
@@ -167,13 +171,15 @@ if classify_button:
                            unsafe_allow_html=True)
             
             # Metrics
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Confidence", f"{confidence:.1%}")
             with col2:
                 st.metric("Not Hate Speech", f"{probabilities[0]:.1%}")
             with col3:
                 st.metric("Hate Speech", f"{probabilities[1]:.1%}")
+            with col4:
+                st.metric("Processing Time", f"{processing_time:.3f}s")
             
             # Probability distribution chart
             if show_probabilities:
