@@ -535,12 +535,40 @@ def load_model_from_hf(model_type="altered"):
     
     model = model.to(device)
     
+    # Verify model is in eval mode
+    print(f"Model training mode: {model.training}")
+    print(f"Dropout layers found: {sum(1 for _ in model.modules() if isinstance(_, (nn.Dropout, nn.Dropout1d, nn.Dropout2d, nn.Dropout3d)))}")
+    
     # Create a unified config dict with max_length at top level for compatibility
     unified_config = config.copy()
     if 'max_length' not in unified_config and 'training_config' in config:
         unified_config['max_length'] = training_config.get('max_length', 128)
     
     return model, tokenizer_hatebert, tokenizer_rationale, unified_config, device
+
+
+def combined_loss(logits, labels, rationale_probs, selector_logits, rationale_mask=None, attns=None, attn_weight=0.0, rationale_weight=1.0):
+    cls_loss = F.cross_entropy(logits, labels)
+
+    # supervise selector logits with BCE-with-logits against rationale mask (if available)
+    if rationale_mask is not None:
+        selector_loss = F.binary_cross_entropy_with_logits(selector_logits, rationale_mask.to(selector_logits.device))
+    else:
+        selector_loss = torch.tensor(0.0, device=cls_loss.device)
+
+    # optional attention alignment loss (disabled by default)
+    attn_loss = torch.tensor(0.0, device=cls_loss.device)
+    if attns is not None and attn_weight > 0.0:
+        try:
+            last_attn = attns[-1]  # (B, H, L, L)
+            attn_mass = last_attn.mean(1).mean(1)  # (B, L)
+            attn_loss = F.mse_loss(attn_mass, rationale_mask.to(attn_mass.device))
+        except Exception:
+            attn_loss = torch.tensor(0.0, device=cls_loss.device)
+
+    total_loss = cls_loss + rationale_weight * selector_loss + attn_weight * attn_loss
+    return total_loss, cls_loss.item(), selector_loss.item(), attn_loss.item()
+
 
 def predict_text(text, rationale, model, tokenizer_hatebert, tokenizer_rationale, 
                  device='cpu', max_length=128, model_type="altered"):
