@@ -1,6 +1,6 @@
 ---
-title: Test
-emoji: 🚀
+title: Hatespeech Detection
+emoji: 🛡️
 colorFrom: red
 colorTo: red
 sdk: docker

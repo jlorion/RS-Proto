@@ -15,6 +15,8 @@ COPY src/ ./src/
 
 RUN uv sync --frozen
 
+ENV HF_ENDPOINT=https://hf-mirror.com
+
 EXPOSE 8501
 
 HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
