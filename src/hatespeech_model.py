@@ -13,6 +13,7 @@ import numpy as np
 import requests
 import json
 from dotenv import load_dotenv
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 # Load environment variables from .env file
 load_dotenv()
