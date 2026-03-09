@@ -1,4 +1,5 @@
 import gc
+import re
 
 import streamlit as st
 from hatespeech_model import predict_hatespeech, load_model_from_hf, predict_hatespeech_from_file, get_rationale_from_mistral, preprocess_rationale_mistral
@@ -23,6 +24,16 @@ st.set_page_config(
 def load_cached_model(model_type="altered"):
     """Load and cache the model"""
     return load_model_from_hf(model_type=model_type)
+
+def clean_user_input(text):
+    """Remove URLs and special characters (except exclamation points) from text"""
+    # Remove URLs
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+    # Remove special characters except exclamation points
+    text = re.sub(r'[^a-zA-Z0-9\s!]', '', text)
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 # Custom CSS
 st.markdown("""
@@ -156,21 +167,24 @@ classify_button = st.button("🔍 Analyze Text", type="primary", use_container_w
 
 if classify_button:
     if user_input and user_input.strip():
+        # Clean the input text
+        cleaned_input = clean_user_input(user_input)
+        
         with st.spinner('🔄 Generating rationale from Mistral AI...'):
             # --- Step 1: Get rationale from Mistral ---
             try:
-                raw_rationale = get_rationale_from_mistral(user_input)
+                raw_rationale = get_rationale_from_mistral(cleaned_input)
                 cleaned_rationale = preprocess_rationale_mistral(raw_rationale)
                 print(f"Raw rationale from Mistral: {raw_rationale}")
             except Exception as e:
                 st.error(f"❌ Error generating/processing rationale: {str(e)}")
-                cleaned_rationale = user_input  # fallback to raw input
+                cleaned_rationale = cleaned_input  # fallback to cleaned input
             
         with st.spinner('🔄 Analyzing text with models...'):
             # Run enhanced model
             enhanced_start = time.time()
             enhanced_model_result = predict_hatespeech(
-                text=user_input,
+                text=cleaned_input,
                 rationale=cleaned_rationale,  # use cleaned rationale
                 model=enhanced_model,
                 tokenizer_hatebert=enhanced_tokenizer_hatebert,
@@ -184,7 +198,7 @@ if classify_button:
             # Run base model
             base_start = time.time()
             base_model_result = predict_hatespeech(
-                text=user_input,
+                text=cleaned_input,
                 rationale=cleaned_rationale,  # use cleaned rationale
                 model=base_model,
                 tokenizer_hatebert=base_tokenizer_hatebert,
