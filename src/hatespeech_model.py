@@ -509,16 +509,16 @@ def load_model_from_hf(model_type="altered"):
         cnn_kernel_sizes = tuple(w.shape[2] for w in conv_weights)
         cnn_dropout = 0.3
         projection_mlp = ProjectionMLP(
-            input_size=input_dim,
-            hidden_size=hidden_dim,
-            num_labels=num_labels
+            input_size=1824,
+            hidden_size=128,
+            num_labels=2
         )
 
         model = ConcatModelWithRationale(
             hatebert_model=hatebert_model,
             additional_model=rationale_model,
             projection_mlp=projection_mlp,
-            hidden_size=H,
+            hidden_size=768,
             freeze_additional_model=True,
             cnn_num_filters=cnn_num_filters,
             cnn_kernel_sizes=cnn_kernel_sizes,
