@@ -394,25 +394,16 @@ def load_model_from_hf(model_type="altered"):
     tokenizer_hatebert = AutoTokenizer.from_pretrained(hatebert_name)
     tokenizer_rationale = AutoTokenizer.from_pretrained(rationale_name)
 
-    H = hatebert_model.config.hidden_size
-    first_layer_weight = state_dict["projection_mlp.layers.0.weight"]
-    second_layer_weight = state_dict["projection_mlp.layers.4.weight"]
-    classifier_weight = state_dict["projection_mlp.layers.7.weight"]
-
-    input_dim = first_layer_weight.shape[1]     
-    hidden_dim = second_layer_weight.shape[0]  
-    num_labels = classifier_weight.shape[0]    
 
     temporal_keys = [k for k in state_dict if k.startswith("temporal_cnn.convs")]
 
     is_altered = len(temporal_keys) > 0
 
-
     if not is_altered or model_type.lower() == "base":
 
         projection_mlp = ProjectionMLPBase(
-            input_size=input_dim,
-            output_size=hidden_dim
+            input_size=1536,
+            output_size=512
         )
 
         model = BaseShield(
@@ -433,16 +424,16 @@ def load_model_from_hf(model_type="altered"):
         cnn_kernel_sizes = tuple(w.shape[2] for w in conv_weights)
         cnn_dropout = 0.3
         projection_mlp = ProjectionMLP(
-            input_size=input_dim,
-            hidden_size=hidden_dim,
-            num_labels=num_labels
+            input_size=1824,
+            hidden_size=128,
+            num_labels=2
         )
 
         model = ConcatModelWithRationale(
             hatebert_model=hatebert_model,
             additional_model=rationale_model,
             projection_mlp=projection_mlp,
-            hidden_size=H,
+            hidden_size=768,
             freeze_additional_model=True,
             cnn_num_filters=cnn_num_filters,
             cnn_kernel_sizes=cnn_kernel_sizes,
