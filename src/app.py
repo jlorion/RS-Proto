@@ -2,7 +2,7 @@ import gc
 import re
 
 import streamlit as st
-from hatespeech_model import predict_hatespeech, load_model_from_hf, predict_hatespeech_from_file, get_rationale_from_mistral, preprocess_rationale_mistral
+from hatespeech_model import predict_hatespeech, load_model_from_hf, predict_hatespeech_from_file, get_rationale_from_mistral, preprocess_rationale_mistral, predict_hatespeech_from_file_batched
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
@@ -413,7 +413,7 @@ if classify_button:
             # Run both models on the file
             # base_result = predict_hatespeech_from_file(...)  # Base model
             # enhanced_result = predict_hatespeech_from_file(...)  # Enhanced model
-            enhanced_result = predict_hatespeech_from_file(
+            enhanced_result = predict_hatespeech_from_file_batched(
                 text_list=file_content['text'].tolist(),
                 rationale_list=file_content['CF_Rationales'].tolist(),
                 true_label=file_content['label'].tolist(),
