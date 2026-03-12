@@ -108,6 +108,9 @@ with st.spinner('🔄 Loading models... This may take a moment on first run.'):
 # Sidebar
 with st.sidebar:
     st.header("⚙️ Settings")
+    
+    st.divider()
+    
     st.markdown(f"**Device:** CPU")
     st.markdown(f"**Max Length:** 128")
     st.markdown(f"**CNN Filters:** 128")
@@ -353,21 +356,19 @@ if classify_button:
                     
                     # Filter out special tokens and create visualization
                     token_importance = []
-                    html_output = "<div style='font-size: 16px; line-height: 2.2; padding: 15px; background-color: #0E1117; border-radius: 10px;'>"
+                    html_output = "<div style='font-size: 16px; line-height: 2.2; padding: 15px; background-color: #f9f7f7; border-radius: 10px; color: #333;'>"
                     
                     for token, score in zip(enhanced_tokens, enhanced_rationale_scores):
                         if token not in ['[CLS]', '[SEP]', '[PAD]']:
                             # Clean token
                             display_token = token.replace('##', '')
                             token_importance.append({'Token': display_token, 'Importance': score})
-                            thresholds = [0.25, 0.5, 0.75]
-                            # Color intensity based on score
+                            
+                            # Color intensity based on score and prediction
                             alpha = min(score * 1.5, 1.0)  # Scale up visibility
-                            color = f"rgba(239, 83, 80, {alpha:.2f})"
-                            # if score > 0.5:
-                            #     color = f"rgba(239, 83, 80, {alpha:.2f})"
-                            # else:
-                            #     color = f"rgba(242, 155, 5, {alpha:.2f})"
+                            
+                            color = f"rgba(239, 83, 80, {alpha:.2f})"  # Red for hate speech influence
+                            # Use green for non-hate speech, red for hate speech
                             # if enhanced_prediction == 1:  # Hate speech
                             #     color = f"rgba(239, 83, 80, {alpha:.2f})"
                             # else:  # Not hate speech
@@ -377,7 +378,10 @@ if classify_button:
                     
                     html_output += "</div>"
                     st.markdown(html_output, unsafe_allow_html=True)
-                    st.caption("🔴 Darker red = More influence on hate speech detection.")
+                    
+                    # Dynamic caption based on prediction
+                    if enhanced_prediction == 1:
+                        st.caption("🔴 Darker red = More influence on hate speech detection.")
                     
                     # Top important tokens
                     st.markdown("**📋 Top Important Tokens**")
