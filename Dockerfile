@@ -11,9 +11,10 @@ RUN apt-get update && apt-get install -y \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
-COPY src/ ./src/
 
 RUN uv sync --frozen
+
+COPY src/ ./src/
 
 ENV HF_ENDPOINT=https://hf-mirror.com
 
