@@ -463,6 +463,10 @@ def predict_text(
 
     model.eval()
 
+    # Convert to string and handle None/NaN values
+    text = str(text) if text is not None else ""
+    rationale = str(rationale) if rationale is not None else ""
+
     main_inputs = tokenizer_hatebert(
         text,
         max_length=max_length,
@@ -674,6 +678,10 @@ def predict_hatespeech_from_file_batched(
         batch_end = min(batch_start + batch_size, len(text_list))
         batch_texts = text_list[batch_start:batch_end]
         batch_rationales = rationale_list[batch_start:batch_end]
+
+        # Convert to strings and handle None/NaN values
+        batch_texts = [str(t) if t is not None else "" for t in batch_texts]
+        batch_rationales = [str(r) if r is not None else "" for r in batch_rationales]
 
         # Tokenize batch
         main_batch_inputs = tokenizer_hatebert(
