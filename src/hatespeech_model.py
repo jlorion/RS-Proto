@@ -624,6 +624,154 @@ def predict_hatespeech_from_file(
         'runtime': runtime,
         'all_probabilities': all_probs.tolist()
     }
+
+def predict_hatespeech_from_file_batched(
+    text_list,
+    rationale_list,
+    true_label,
+    model,
+    tokenizer_hatebert,
+    tokenizer_rationale,
+    config,
+    device,
+    model_type="altered",
+    batch_size=16
+):
+
+    print(f"\nStarting batched inference for model: {type(model).__name__}")
+
+    predictions = []
+    all_probs = []
+    cpu_percent_list = []
+    memory_percent_list = []
+
+    process = psutil.Process(os.getpid())
+    max_length = config.get('max_length', 128)
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+    # warmup
+    with torch.no_grad():
+        _ = predict_text(
+            text=text_list[0],
+            rationale=rationale_list[0],
+            model=model,
+            tokenizer_hatebert=tokenizer_hatebert,
+            tokenizer_rationale=tokenizer_rationale,
+            device=device,
+            max_length=max_length,
+            model_type=model_type
+        )
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+    start_time = time()
+
+    # Process in batches
+    for batch_start in range(0, len(text_list), batch_size):
+        batch_end = min(batch_start + batch_size, len(text_list))
+        batch_texts = text_list[batch_start:batch_end]
+        batch_rationales = rationale_list[batch_start:batch_end]
+
+        # Tokenize batch
+        main_batch_inputs = tokenizer_hatebert(
+            batch_texts,
+            max_length=max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt"
+        )
+
+        rationale_batch_inputs = tokenizer_rationale(
+            [r if r else t for r, t in zip(batch_rationales, batch_texts)],
+            max_length=max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt"
+        )
+
+        # Move to device
+        batch_input_ids = main_batch_inputs["input_ids"].to(device)
+        batch_attention_mask = main_batch_inputs["attention_mask"].to(device)
+        batch_add_input_ids = rationale_batch_inputs["input_ids"].to(device)
+        batch_add_attention_mask = rationale_batch_inputs["attention_mask"].to(device)
+
+        with torch.no_grad():
+            if model_type.lower() == "base":
+                batch_logits = model(
+                    batch_input_ids,
+                    batch_attention_mask,
+                    batch_add_input_ids,
+                    batch_add_attention_mask
+                )
+                batch_rationale_probs = None
+            else:
+                batch_outputs = model(
+                    batch_input_ids,
+                    batch_attention_mask,
+                    batch_add_input_ids,
+                    batch_add_attention_mask
+                )
+
+                if isinstance(batch_outputs, tuple) and len(batch_outputs) == 4:
+                    batch_logits, batch_rationale_probs, _, _ = batch_outputs
+                else:
+                    raise ValueError(f"Unexpected number of outputs from model: {len(batch_outputs)}")
+
+            batch_probs = F.softmax(batch_logits, dim=1)
+
+            if torch.isnan(batch_probs).any() or torch.isinf(batch_probs).any():
+                batch_probs = torch.ones_like(batch_logits) / batch_logits.size(1)
+
+            batch_predictions = batch_logits.argmax(dim=1).cpu().numpy()
+            batch_probabilities = batch_probs.cpu().numpy()
+
+        # Collect batch results
+        predictions.extend(batch_predictions.tolist())
+        all_probs.extend(batch_probabilities.tolist())
+
+        # Log metrics periodically
+        if batch_end % max(10, batch_size) == 0 or batch_end == len(text_list):
+            cpu_percent_list.append(process.cpu_percent())
+            memory_percent_list.append(process.memory_info().rss / 1024 / 1024)
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+    runtime = time() - start_time
+
+    print(f"Batched inference completed for {type(model).__name__}")
+    print(f"Total runtime: {runtime:.4f} seconds")
+
+    all_probs = np.array(all_probs)
+
+    f1 = f1_score(true_label, predictions, zero_division=0)
+    accuracy = accuracy_score(true_label, predictions)
+    precision = precision_score(true_label, predictions, zero_division=0)
+    recall = recall_score(true_label, predictions, zero_division=0)
+    cm = confusion_matrix(true_label, predictions).tolist()
+
+    avg_cpu = sum(cpu_percent_list) / len(cpu_percent_list) if cpu_percent_list else 0
+    avg_memory = sum(memory_percent_list) / len(memory_percent_list) if memory_percent_list else 0
+    peak_memory = max(memory_percent_list) if memory_percent_list else 0
+    peak_cpu = max(cpu_percent_list) if cpu_percent_list else 0
+
+    return {
+        'model_name': type(model).__name__,
+        'f1_score': f1,
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'confusion_matrix': cm,
+        'cpu_usage': avg_cpu,
+        'memory_usage': avg_memory,
+        'peak_cpu_usage': peak_cpu,
+        'peak_memory_usage': peak_memory,
+        'runtime': runtime,
+        'all_probabilities': all_probs.tolist()
+    }
     
 def predict_hatespeech(text, rationale, model, tokenizer_hatebert, tokenizer_rationale, config, device, model_type="altered"):
 
