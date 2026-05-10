@@ -75,12 +75,25 @@ st.markdown("""
         color: #2e7d32;
         border: 2px solid #66bb6a;
     }
+    textarea:focus {
+        border-color: #1f77b4 !important;
+        box-shadow: 0 0 0 1px #1f77b4 !important;
+        outline: none;
+    }
+    div[data-baseweb="textarea"]:focus-within {
+        border-color: #1f77b4 !important;
+        box-shadow: 0 0 0 1px #1f77b4 !important;
+    }
+    div[data-baseweb="base-input"]:focus-within {
+        border-color: #1f77b4 !important;
+        box-shadow: 0 0 0 1px #1f77b4 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown('<div class="main-header">🛡️ Hate Speech Detection System</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Comparing Base vs Enhanced models with explainable AI for detecting hate speech</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header" style="color: red;">🛡️ Hate Speech Detection System</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header" style="text-align: center; color: #555;">Comparing Base vs Enhanced models with explainable AI for detecting hate speech</div>', unsafe_allow_html=True)
 
 # Load both models with spinner
 with st.spinner('🔄 Loading models... This may take a moment on first run.'):
@@ -100,7 +113,7 @@ with st.spinner('🔄 Loading models... This may take a moment on first run.'):
         enhanced_config = enhanced_data["config"]
         enhanced_device = enhanced_data["device"]
 
-        st.success('✅ Base Shield and Enhanced Shield models loaded successfully!')
+        st.toast('✅ Base Shield and Enhanced Shield models loaded successfully!', icon='✅')
     except Exception as e:
         st.error(f"❌ Error loading models: {str(e)}")
         st.stop()
@@ -116,8 +129,13 @@ with st.sidebar:
     st.markdown(f"**CNN Filters:** 128")
 
     st.divider()
+    st.subheader("🤖 Model Opion")
+    is_basemodel = st.checkbox("Enable Base Model", value=True)
+    is_enhanced = st.checkbox("Enable Enhanced Model", value=True)
+
+    st.divider()
     st.subheader("🔍 File Upload")
-    is_file_uploader_visible = st.checkbox("Enable File Upload", value=is_file_uploader_visible)
+    is_file_uploader_visible = st.checkbox("Enable File Upload", value=False)
 
     
     st.divider()
@@ -136,7 +154,11 @@ with st.sidebar:
     """)
 
 # Main interface
-col1, col2 = st.columns([2, 1])
+if 'show_stats' not in st.session_state:
+    st.session_state.show_stats = True
+
+col_ratios = [2, 1] if st.session_state.show_stats else [19, 1]
+col1, col2 = st.columns(col_ratios)
 
 with col1:
     if is_file_uploader_visible:
@@ -160,101 +182,129 @@ with col1:
             "Enter text to analyze:",
             placeholder="Type or paste text here to check for hate speech...",
             height=150,
-            help="Enter any text and the model will classify it as hate speech or not"
+            help="Enter any text and the model will classify it as hate speech or not",
+            key="user_input_area"
         )
         
         optional_rationale = st.text_area(
-            "Optional: Provide context or rationale (leave empty to use main text):",
+            "Optional: Provide context or rationale (leave empty to use mistral rationales):",
             placeholder="Why might this be hate speech? (optional)",
-            height=80
+            height=80,
+            key="optional_rationale_area"
         )
 
 with col2:
-    st.subheader("📊 Quick Stats")
-    if user_input:
-        word_count = len(user_input.split())
-        char_count = len(user_input)
-        st.metric("Words", word_count)
-        st.metric("Characters", char_count)
-    if is_file_uploader_visible and uploaded_file is not None:
-        st.markdown(f"**Filename:** {uploaded_file.name}")
-        st.markdown(f"**Size:** {uploaded_file.size / 1024:.2f} KB")
-        file_rows = len(file_content)
-        st.metric("Rows in File", file_rows)
-    else:
-        st.info("Enter text/file to see statistics")
+    toggle_label = "**📊 Quick Stats**" if st.session_state.show_stats else "**📊**"
+    if st.button(toggle_label, key="stats_toggle", use_container_width=True):
+        st.session_state.show_stats = not st.session_state.show_stats
+        st.rerun()
+
+    if st.session_state.show_stats:
+        # st.markdown("**📊 Quick Stats**")
+        if user_input:
+            word_count = len(user_input.split())
+            char_count = len(user_input)
+            st.metric("Words", word_count)
+            st.metric("Characters", char_count)
+        if is_file_uploader_visible and uploaded_file is not None:
+            st.markdown(f"**Filename:** {uploaded_file.name}")
+            st.markdown(f"**Size:** {uploaded_file.size / 1024:.2f} KB")
+            file_rows = len(file_content)
+            st.metric("Rows in File", file_rows)
+        else:
+            st.info("Enter text/file to see statistics")
+
+def onClick():
+    st.session_state.user_input_area = ""
+    st.session_state.optional_rationale_area = ""
 
 # Classification button
-classify_button = st.button("🔍 Analyze Text", type="primary", use_container_width=True)
+btn_col1, btn_col2 = st.columns([5, 1])
+with btn_col1:
+    classify_button = st.button("🔍 Analyze Text", type="primary", use_container_width=True)
+with btn_col2:
+    st.button("🗑️ Clear", use_container_width=True, on_click=onClick)
 
 if classify_button:
     if user_input and user_input.strip():
-        # Clean the input text
-        cleaned_input = clean_user_input(user_input)
-        
-        with st.spinner('🔄 Generating rationale from Mistral AI...'):
-            # --- Step 1: Get rationale from Mistral ---
-            try:
-                raw_rationale = get_rationale_from_mistral(cleaned_input)
-                cleaned_rationale = preprocess_rationale_mistral(raw_rationale)
-                print(f"Raw rationale from Mistral: {raw_rationale}")
-            except Exception as e:
-                st.error(f"❌ Error generating/processing rationale: {str(e)}")
-                cleaned_rationale = cleaned_input  # fallback to cleaned input
+        if not is_basemodel and not is_enhanced:
+            st.warning("⚠️ Please enable at least one model in the sidebar.")
+        else:
+            # Clean the input text
+            cleaned_input = clean_user_input(user_input)
             
-        with st.spinner('🔄 Analyzing text with models...'):
-            # Run enhanced model
-            enhanced_start = time.time()
-            enhanced_model_result = predict_hatespeech(
-                text=cleaned_input,
-                rationale=cleaned_rationale,  # use cleaned rationale
-                model=enhanced_model,
-                tokenizer_hatebert=enhanced_tokenizer_hatebert,
-                tokenizer_rationale=enhanced_tokenizer_rationale,
-                config=enhanced_config,
-                device=enhanced_device,
-                model_type="altered"
-            )
-            enhanced_end = time.time()
+            with st.spinner('🔄 Generating rationale from Mistral AI...'):
+                # --- Step 1: Get rationale from Mistral ---
+                try:
+                    raw_rationale = get_rationale_from_mistral(cleaned_input)
+                    cleaned_rationale = preprocess_rationale_mistral(raw_rationale)
+                    print(f"Raw rationale from Mistral: {raw_rationale}")
+                except Exception as e:
+                    st.error(f"❌ Error generating/processing rationale: {str(e)}")
+                    cleaned_rationale = cleaned_input  # fallback to cleaned input
+                
+            with st.spinner('🔄 Analyzing text with models...'):
+                if is_enhanced:
+                    # Run enhanced model
+                    enhanced_start = time.time()
+                    enhanced_model_result = predict_hatespeech(
+                        text=cleaned_input,
+                        rationale=cleaned_rationale,
+                        model=enhanced_model,
+                        tokenizer_hatebert=enhanced_tokenizer_hatebert,
+                        tokenizer_rationale=enhanced_tokenizer_rationale,
+                        config=enhanced_config,
+                        device=enhanced_device,
+                        model_type="altered"
+                    )
+                    enhanced_end = time.time()
+                    enhanced_prediction = enhanced_model_result['prediction']
+                    enhanced_confidence = enhanced_model_result['confidence']
+                    enhanced_probabilities = enhanced_model_result['probabilities']
+                    enhanced_rationale_scores = enhanced_model_result['rationale_scores']
+                    enhanced_tokens = enhanced_model_result['tokens']
+                    enhanced_processing_time = enhanced_end - enhanced_start
 
-            # Run base model
-            base_start = time.time()
-            base_model_result = predict_hatespeech(
-                text=cleaned_input,
-                rationale=cleaned_rationale,  # use cleaned rationale
-                model=base_model,
-                tokenizer_hatebert=base_tokenizer_hatebert,
-                tokenizer_rationale=base_tokenizer_rationale,
-                config=base_config,
-                device=base_device,
-                model_type="base"
-            )
-            base_end = time.time()
+                if is_basemodel:
+                    # Run base model
+                    base_start = time.time()
+                    base_model_result = predict_hatespeech(
+                        text=cleaned_input,
+                        rationale=cleaned_rationale,
+                        model=base_model,
+                        tokenizer_hatebert=base_tokenizer_hatebert,
+                        tokenizer_rationale=base_tokenizer_rationale,
+                        config=base_config,
+                        device=base_device,
+                        model_type="base"
+                    )
+                    base_end = time.time()
+                    base_prediction = base_model_result['prediction']
+                    base_confidence = base_model_result['confidence']
+                    base_probabilities = base_model_result['probabilities']
+                    base_processing_time = base_end - base_start
 
-            gc.collect()  # Clean up memory after inference
-            
-            # Extract results for both models
-            base_prediction = base_model_result['prediction']
-            base_confidence = base_model_result['confidence']
-            base_probabilities = base_model_result['probabilities']
-            base_processing_time = base_end - base_start
-            
-            enhanced_prediction = enhanced_model_result['prediction']
-            enhanced_confidence = enhanced_model_result['confidence']
-            enhanced_probabilities = enhanced_model_result['probabilities']
-            enhanced_rationale_scores = enhanced_model_result['rationale_scores']
-            enhanced_tokens = enhanced_model_result['tokens']
-            enhanced_processing_time = enhanced_end - enhanced_start
-            
-            # Display results
-            st.divider()
-            st.header("📈 Analysis Results")
-            
-            # Side-by-side results columns
-            base_col, enhanced_col = st.columns(2)
+                gc.collect()  # Clean up memory after inference
+                
+                # Display results
+                st.divider()
+                st.header("📈 Analysis Results")
+                
+                # Dynamic column layout based on active models
+                if is_basemodel and is_enhanced:
+                    _cols = st.columns(2)
+                    base_col = _cols[0]
+                    enhanced_col = _cols[1]
+                elif is_basemodel:
+                    base_col = st.container()
+                    enhanced_col = None
+                else:
+                    base_col = None
+                    enhanced_col = st.container()
             
             # === BASE MODEL RESULTS (LEFT) ===
-            with base_col:
+            if is_basemodel:
+              with base_col:
                 st.subheader("🔵 Base Shield Results")
                 
                 # Prediction box
@@ -309,7 +359,8 @@ if classify_button:
                         })
             
             # === ENHANCED MODEL RESULTS (RIGHT) ===
-            with enhanced_col:
+            if is_enhanced:
+              with enhanced_col:
                 st.subheader("🟢 Enhanced Shield Results")
                 
                 # Prediction box
@@ -368,11 +419,6 @@ if classify_button:
                             alpha = min(score * 1.5, 1.0)  # Scale up visibility
                             
                             color = f"rgba(239, 83, 80, {alpha:.2f})"  # Red for hate speech influence
-                            # Use green for non-hate speech, red for hate speech
-                            # if enhanced_prediction == 1:  # Hate speech
-                            #     color = f"rgba(239, 83, 80, {alpha:.2f})"
-                            # else:  # Not hate speech
-                            #     color = f"rgba(102, 187, 106, {alpha:.2f})"
                             
                             html_output += f"<span style='background-color: {color}; padding: 3px 6px; margin: 1px; border-radius: 4px; display: inline-block;'>{display_token}</span> "
                     
@@ -410,135 +456,134 @@ if classify_button:
                                 'cnn_filters': '128',
                             }
                         })
-    if is_file_uploader_visible and uploaded_file is not None:
-        st.markdown("**Preview:**")
-        st.dataframe(file_content.head(3), use_container_width=True)
-        with st.spinner('🔄 Analyzing file with both models... This may take a while for large files.'):
-            # Run both models on the file
-            # base_result = predict_hatespeech_from_file(...)  # Base model
-            # enhanced_result = predict_hatespeech_from_file(...)  # Enhanced model
-            enhanced_result = predict_hatespeech_from_file_batched(
-                text_list=file_content['text'].tolist(),
-                rationale_list=file_content['CF_Rationales'].tolist(),
-                true_label=file_content['label'].tolist(),
-                model=enhanced_model,
-                tokenizer_hatebert=enhanced_tokenizer_hatebert,
-                tokenizer_rationale=enhanced_tokenizer_rationale,
-                config=enhanced_config,
-                device=enhanced_device,
-                model_type="altered"
-            )
-            base_result = predict_hatespeech_from_file(
-                text_list=file_content['text'].tolist(),
-                rationale_list=file_content['CF_Rationales'].tolist(),
-                true_label=file_content['label'].tolist(),
-                model=base_model,  
-                tokenizer_hatebert=base_tokenizer_hatebert,
-                tokenizer_rationale=base_tokenizer_rationale,
-                config=base_config,
-                device=base_device,
-                model_type="base"
-            )
-            st.success("✅ File analysis complete for both models!")
-            st.divider()
-            st.header("📊 Analysis Results - Model Comparison")
+        if is_file_uploader_visible and uploaded_file is not None:
+            st.markdown("**Preview:**")
+            st.dataframe(file_content.head(3), use_container_width=True)
+            if not is_basemodel and not is_enhanced:
+                st.warning("⚠️ Please enable at least one model in the sidebar.")
+            else:
+                with st.spinner('🔄 Analyzing file with models... This may take a while for large files.'):
+                    if is_enhanced:
+                        enhanced_result = predict_hatespeech_from_file_batched(
+                            text_list=file_content['text'].tolist(),
+                            rationale_list=file_content['CF_Rationales'].tolist(),
+                            true_label=file_content['label'].tolist(),
+                            model=enhanced_model,
+                            tokenizer_hatebert=enhanced_tokenizer_hatebert,
+                            tokenizer_rationale=enhanced_tokenizer_rationale,
+                            config=enhanced_config,
+                            device=enhanced_device,
+                            model_type="altered"
+                        )
+                    if is_basemodel:
+                        base_result = predict_hatespeech_from_file(
+                            text_list=file_content['text'].tolist(),
+                            rationale_list=file_content['CF_Rationales'].tolist(),
+                            true_label=file_content['label'].tolist(),
+                            model=base_model,
+                            tokenizer_hatebert=base_tokenizer_hatebert,
+                            tokenizer_rationale=base_tokenizer_rationale,
+                            config=base_config,
+                            device=base_device,
+                            model_type="base"
+                        )
+                    st.success("✅ File analysis complete!")
+                    st.divider()
+                    st.header("📊 Analysis Results - Model Comparison")
 
-            gc.collect()  # Clean up memory after file inference
-            
-            # Side-by-side results columns
-            base_file_col, enhanced_file_col = st.columns(2)
-            
-            # === BASE MODEL FILE RESULTS (LEFT) ===
-            with base_file_col:
-                st.subheader("🔵 Base Shield Results")
-                
-                # Performance Metrics
-                st.markdown("**📈 Classification Metrics**")
-                base_fm1, base_fm2 = st.columns(2)
-                with base_fm1:
-                    st.metric("F1 Score", f"{base_result['f1_score']:.4f}")
-                    st.metric("Precision", f"{base_result['precision']:.4f}")
-                with base_fm2:
-                    st.metric("Accuracy", f"{base_result['accuracy']:.4f}")
-                    st.metric("Recall", f"{base_result['recall']:.4f}")
-                
-                # Confusion Matrix Visualization
-                st.markdown("**🎯 Confusion Matrix**")
-                base_cm = base_result['confusion_matrix']
-                fig_base_cm = go.Figure(data=go.Heatmap(
-                    z=base_cm,
-                    x=['Pred Not Hate', 'Pred Hate'],
-                    y=['True Not Hate', 'True Hate'],
-                    colorscale='Blues',
-                    text=base_cm,
-                    texttemplate='%{text}',
-                    textfont={"size": 14},
-                    showscale=False
-                ))
-                fig_base_cm.update_layout(height=300)
-                st.plotly_chart(fig_base_cm, use_container_width=True)
-                
-                # Resource Usage
-                st.markdown("**⚙️ Resource Usage**")
-                base_cpu_col, base_mem_col = st.columns(2)
-                with base_cpu_col:
-                    st.metric("Avg CPU", f"{base_result['cpu_usage']:.2f}%")
-                    st.metric("Peak CPU", f"{base_result['peak_cpu_usage']:.2f}%")
-                with base_mem_col:
-                    st.metric("Avg Memory", f"{base_result['memory_usage']:.2f} MB")
-                    st.metric("Peak Memory", f"{base_result['peak_memory_usage']:.2f} MB")
-                
-                # Runtime
-                st.markdown("**⏱️ Performance**")
-                st.metric("Total Runtime", f"{base_result['runtime']:.2f}s")
-                st.metric("Avg Time/Sample", f"{base_result['runtime']/file_rows:.3f}s")
-            
-            # === ENHANCED MODEL FILE RESULTS (RIGHT) ===
-            with enhanced_file_col:
-                st.subheader("🟢 Enhanced Shield Results")
-                
-                st.markdown("**📈 Classification Metrics**")
-                enh_fm1, enh_fm2 = st.columns(2)
-                with enh_fm1:
-                    st.metric("F1 Score", f"{enhanced_result['f1_score']:.4f}")
-                    st.metric("Precision", f"{enhanced_result['precision']:.4f}")
-                with enh_fm2:
-                    st.metric("Accuracy", f"{enhanced_result['accuracy']:.4f}")
-                    st.metric("Recall", f"{enhanced_result['recall']:.4f}")
-                
-                # Confusion Matrix Visualization
-                st.markdown("**🎯 Confusion Matrix**")
-                enhanced_cm = enhanced_result['confusion_matrix']
-                fig_enhanced_cm = go.Figure(data=go.Heatmap(
-                    z=enhanced_cm,
-                    x=['Pred Not Hate', 'Pred Hate'],
-                    y=['True Not Hate', 'True Hate'],
-                    colorscale='Greens',
-                    text=enhanced_cm,
-                    texttemplate='%{text}',
-                    textfont={"size": 14},
-                    showscale=False
-                ))
-                fig_enhanced_cm.update_layout(height=300)
-                st.plotly_chart(fig_enhanced_cm, use_container_width=True)
-                
-                st.markdown("**⚙️ Resource Usage**")
-                enh_cpu_col, enh_mem_col = st.columns(2)
-                with enh_cpu_col:
-                    st.metric("Avg CPU", f"{enhanced_result['cpu_usage']:.2f}%")
-                    st.metric("Peak CPU", f"{enhanced_result['peak_cpu_usage']:.2f}%")
-                with enh_mem_col:
-                    st.metric("Avg Memory", f"{enhanced_result['memory_usage']:.2f} MB")
-                    st.metric("Peak Memory", f"{enhanced_result['peak_memory_usage']:.2f} MB")
-                
-                # Runtime
-                st.markdown("**⏱️ Performance**")
-                st.metric("Total Runtime", f"{enhanced_result['runtime']:.2f}s")
-                st.metric("Avg Time/Sample", f"{enhanced_result['runtime']/file_rows:.3f}s")
+                    gc.collect()  # Clean up memory after file inference
+
+                    # Dynamic column layout based on active models
+                    if is_basemodel and is_enhanced:
+                        _file_cols = st.columns(2)
+                        base_file_col = _file_cols[0]
+                        enhanced_file_col = _file_cols[1]
+                    elif is_basemodel:
+                        base_file_col = st.container()
+                        enhanced_file_col = None
+                    else:
+                        base_file_col = None
+                        enhanced_file_col = st.container()
+
+                    # === BASE MODEL FILE RESULTS ===
+                    if is_basemodel:
+                        with base_file_col:
+                            st.subheader("🔵 Base Shield Results")
+                            st.markdown("**📈 Classification Metrics**")
+                            base_fm1, base_fm2 = st.columns(2)
+                            with base_fm1:
+                                st.metric("F1 Score", f"{base_result['f1_score']:.4f}")
+                                st.metric("Precision", f"{base_result['precision']:.4f}")
+                            with base_fm2:
+                                st.metric("Accuracy", f"{base_result['accuracy']:.4f}")
+                                st.metric("Recall", f"{base_result['recall']:.4f}")
+                            st.markdown("**🎯 Confusion Matrix**")
+                            base_cm = base_result['confusion_matrix']
+                            fig_base_cm = go.Figure(data=go.Heatmap(
+                                z=base_cm,
+                                x=['Pred Not Hate', 'Pred Hate'],
+                                y=['True Not Hate', 'True Hate'],
+                                colorscale='Blues',
+                                text=base_cm,
+                                texttemplate='%{text}',
+                                textfont={"size": 14},
+                                showscale=False
+                            ))
+                            fig_base_cm.update_layout(height=300)
+                            st.plotly_chart(fig_base_cm, use_container_width=True)
+                            st.markdown("**⚙️ Resource Usage**")
+                            base_cpu_col, base_mem_col = st.columns(2)
+                            with base_cpu_col:
+                                st.metric("Avg CPU", f"{base_result['cpu_usage']:.2f}%")
+                                st.metric("Peak CPU", f"{base_result['peak_cpu_usage']:.2f}%")
+                            with base_mem_col:
+                                st.metric("Avg Memory", f"{base_result['memory_usage']:.2f} MB")
+                                st.metric("Peak Memory", f"{base_result['peak_memory_usage']:.2f} MB")
+                            st.markdown("**⏱️ Performance**")
+                            st.metric("Total Runtime", f"{base_result['runtime']:.2f}s")
+                            st.metric("Avg Time/Sample", f"{base_result['runtime']/file_rows:.3f}s")
+
+                    # === ENHANCED MODEL FILE RESULTS ===
+                    if is_enhanced:
+                        with enhanced_file_col:
+                            st.subheader("🟢 Enhanced Shield Results")
+                            st.markdown("**📈 Classification Metrics**")
+                            enh_fm1, enh_fm2 = st.columns(2)
+                            with enh_fm1:
+                                st.metric("F1 Score", f"{enhanced_result['f1_score']:.4f}")
+                                st.metric("Precision", f"{enhanced_result['precision']:.4f}")
+                            with enh_fm2:
+                                st.metric("Accuracy", f"{enhanced_result['accuracy']:.4f}")
+                                st.metric("Recall", f"{enhanced_result['recall']:.4f}")
+                            st.markdown("**🎯 Confusion Matrix**")
+                            enhanced_cm = enhanced_result['confusion_matrix']
+                            fig_enhanced_cm = go.Figure(data=go.Heatmap(
+                                z=enhanced_cm,
+                                x=['Pred Not Hate', 'Pred Hate'],
+                                y=['True Not Hate', 'True Hate'],
+                                colorscale='Greens',
+                                text=enhanced_cm,
+                                texttemplate='%{text}',
+                                textfont={"size": 14},
+                                showscale=False
+                            ))
+                            fig_enhanced_cm.update_layout(height=300)
+                            st.plotly_chart(fig_enhanced_cm, use_container_width=True)
+                            st.markdown("**⚙️ Resource Usage**")
+                            enh_cpu_col, enh_mem_col = st.columns(2)
+                            with enh_cpu_col:
+                                st.metric("Avg CPU", f"{enhanced_result['cpu_usage']:.2f}%")
+                                st.metric("Peak CPU", f"{enhanced_result['peak_cpu_usage']:.2f}%")
+                            with enh_mem_col:
+                                st.metric("Avg Memory", f"{enhanced_result['memory_usage']:.2f} MB")
+                                st.metric("Peak Memory", f"{enhanced_result['peak_memory_usage']:.2f} MB")
+                            st.markdown("**⏱️ Performance**")
+                            st.metric("Total Runtime", f"{enhanced_result['runtime']:.2f}s")
+                            st.metric("Avg Time/Sample", f"{enhanced_result['runtime']/file_rows:.3f}s")
 
 
     else:
-        st.warning("⚠️ Please enter some text to analyze.")
+        st.toast("⚠️ Please enter some text to analyze.", icon="⚠️")
 
 # Examples section
 st.divider()

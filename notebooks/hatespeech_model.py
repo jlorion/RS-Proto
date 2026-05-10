@@ -11,7 +11,6 @@ from time import time
 from dotenv import load_dotenv
 from transformers import AutoModel, AutoTokenizer
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, confusion_matrix
-from huggingface_hub import hf_hub_download
 
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
@@ -377,20 +376,21 @@ class BaseShield(nn.Module):
 
     
 def load_model_from_hf(model_type="altered"):
-    print(f"Loading {model_type} model from Hugging Face Hub...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    repo_id = "seffyehl/BetterShield"
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     if model_type.lower() == "altered":
-        model_filename = "AlteredModel.pth"
+        model_path = os.path.join(base_dir, "models", "modified", "ModifiedModel.pth")
     elif model_type.lower() == "base":
-        model_filename = "BaseShield.pth"
+        model_path = os.path.join(base_dir, "models", "base", "BaseShield.pth")
     else:
         raise ValueError("model_type must be 'base' or 'altered'")
 
-    model_path = hf_hub_download(repo_id=repo_id, filename=model_filename)
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at: {model_path}")
 
-    checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+    checkpoint = torch.load(model_path, map_location="cpu")
 
     state_dict = checkpoint.get("model_state_dict", checkpoint)
 
