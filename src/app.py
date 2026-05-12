@@ -129,7 +129,7 @@ with st.sidebar:
     st.markdown(f"**CNN Filters:** 128")
 
     st.divider()
-    st.subheader("🤖 Model Opion")
+    st.subheader("🤖 Model Option")
     is_basemodel = st.checkbox("Enable Base Model", value=True)
     is_enhanced = st.checkbox("Enable Enhanced Model", value=True)
 
@@ -456,131 +456,131 @@ if classify_button:
                                 'cnn_filters': '128',
                             }
                         })
-        if is_file_uploader_visible and uploaded_file is not None:
-            st.markdown("**Preview:**")
-            st.dataframe(file_content.head(3), use_container_width=True)
-            if not is_basemodel and not is_enhanced:
-                st.warning("⚠️ Please enable at least one model in the sidebar.")
-            else:
-                with st.spinner('🔄 Analyzing file with models... This may take a while for large files.'):
-                    if is_enhanced:
-                        enhanced_result = predict_hatespeech_from_file_batched(
-                            text_list=file_content['text'].tolist(),
-                            rationale_list=file_content['CF_Rationales'].tolist(),
-                            true_label=file_content['label'].tolist(),
-                            model=enhanced_model,
-                            tokenizer_hatebert=enhanced_tokenizer_hatebert,
-                            tokenizer_rationale=enhanced_tokenizer_rationale,
-                            config=enhanced_config,
-                            device=enhanced_device,
-                            model_type="altered"
-                        )
-                    if is_basemodel:
-                        base_result = predict_hatespeech_from_file(
-                            text_list=file_content['text'].tolist(),
-                            rationale_list=file_content['CF_Rationales'].tolist(),
-                            true_label=file_content['label'].tolist(),
-                            model=base_model,
-                            tokenizer_hatebert=base_tokenizer_hatebert,
-                            tokenizer_rationale=base_tokenizer_rationale,
-                            config=base_config,
-                            device=base_device,
-                            model_type="base"
-                        )
-                    st.success("✅ File analysis complete!")
-                    st.divider()
-                    st.header("📊 Analysis Results - Model Comparison")
+    elif is_file_uploader_visible and uploaded_file is not None:
+        file_rows = len(file_content)
+        st.markdown("**Preview:**")
+        st.dataframe(file_content.head(3), use_container_width=True)
+        if not is_basemodel and not is_enhanced:
+            st.warning("⚠️ Please enable at least one model in the sidebar.")
+        else:
+            with st.spinner('🔄 Analyzing file with models... This may take a while for large files.'):
+                if is_enhanced:
+                    enhanced_result = predict_hatespeech_from_file_batched(
+                        text_list=file_content['text'].tolist(),
+                        rationale_list=file_content['CF_Rationales'].tolist(),
+                        true_label=file_content['label'].tolist(),
+                        model=enhanced_model,
+                        tokenizer_hatebert=enhanced_tokenizer_hatebert,
+                        tokenizer_rationale=enhanced_tokenizer_rationale,
+                        config=enhanced_config,
+                        device=enhanced_device,
+                        model_type="altered"
+                    )
+                if is_basemodel:
+                    base_result = predict_hatespeech_from_file(
+                        text_list=file_content['text'].tolist(),
+                        rationale_list=file_content['CF_Rationales'].tolist(),
+                        true_label=file_content['label'].tolist(),
+                        model=base_model,
+                        tokenizer_hatebert=base_tokenizer_hatebert,
+                        tokenizer_rationale=base_tokenizer_rationale,
+                        config=base_config,
+                        device=base_device,
+                        model_type="base"
+                    )
+                st.success("✅ File analysis complete!")
+                st.divider()
+                st.header("📊 Analysis Results - Model Comparison")
 
-                    gc.collect()  # Clean up memory after file inference
+                gc.collect()  # Clean up memory after file inference
 
-                    # Dynamic column layout based on active models
-                    if is_basemodel and is_enhanced:
-                        _file_cols = st.columns(2)
-                        base_file_col = _file_cols[0]
-                        enhanced_file_col = _file_cols[1]
-                    elif is_basemodel:
-                        base_file_col = st.container()
-                        enhanced_file_col = None
-                    else:
-                        base_file_col = None
-                        enhanced_file_col = st.container()
+                # Dynamic column layout based on active models
+                if is_basemodel and is_enhanced:
+                    _file_cols = st.columns(2)
+                    base_file_col = _file_cols[0]
+                    enhanced_file_col = _file_cols[1]
+                elif is_basemodel:
+                    base_file_col = st.container()
+                    enhanced_file_col = None
+                else:
+                    base_file_col = None
+                    enhanced_file_col = st.container()
 
-                    # === BASE MODEL FILE RESULTS ===
-                    if is_basemodel:
-                        with base_file_col:
-                            st.subheader("🔵 Base Shield Results")
-                            st.markdown("**📈 Classification Metrics**")
-                            base_fm1, base_fm2 = st.columns(2)
-                            with base_fm1:
-                                st.metric("F1 Score", f"{base_result['f1_score']:.4f}")
-                                st.metric("Precision", f"{base_result['precision']:.4f}")
-                            with base_fm2:
-                                st.metric("Accuracy", f"{base_result['accuracy']:.4f}")
-                                st.metric("Recall", f"{base_result['recall']:.4f}")
-                            st.markdown("**🎯 Confusion Matrix**")
-                            base_cm = base_result['confusion_matrix']
-                            fig_base_cm = go.Figure(data=go.Heatmap(
-                                z=base_cm,
-                                x=['Pred Not Hate', 'Pred Hate'],
-                                y=['True Not Hate', 'True Hate'],
-                                colorscale='Blues',
-                                text=base_cm,
-                                texttemplate='%{text}',
-                                textfont={"size": 14},
-                                showscale=False
-                            ))
-                            fig_base_cm.update_layout(height=300)
-                            st.plotly_chart(fig_base_cm, use_container_width=True)
-                            st.markdown("**⚙️ Resource Usage**")
-                            base_cpu_col, base_mem_col = st.columns(2)
-                            with base_cpu_col:
-                                st.metric("Avg CPU", f"{base_result['cpu_usage']:.2f}%")
-                                st.metric("Peak CPU", f"{base_result['peak_cpu_usage']:.2f}%")
-                            with base_mem_col:
-                                st.metric("Avg Memory", f"{base_result['memory_usage']:.2f} MB")
-                                st.metric("Peak Memory", f"{base_result['peak_memory_usage']:.2f} MB")
-                            st.markdown("**⏱️ Performance**")
-                            st.metric("Total Runtime", f"{base_result['runtime']:.2f}s")
-                            st.metric("Avg Time/Sample", f"{base_result['runtime']/file_rows:.3f}s")
+                # === BASE MODEL FILE RESULTS ===
+                if is_basemodel:
+                    with base_file_col:
+                        st.subheader("🔵 Base Shield Results")
+                        st.markdown("**📈 Classification Metrics**")
+                        base_fm1, base_fm2 = st.columns(2)
+                        with base_fm1:
+                            st.metric("F1 Score", f"{base_result['f1_score']:.4f}")
+                            st.metric("Precision", f"{base_result['precision']:.4f}")
+                        with base_fm2:
+                            st.metric("Accuracy", f"{base_result['accuracy']:.4f}")
+                            st.metric("Recall", f"{base_result['recall']:.4f}")
+                        st.markdown("**🎯 Confusion Matrix**")
+                        base_cm = base_result['confusion_matrix']
+                        fig_base_cm = go.Figure(data=go.Heatmap(
+                            z=base_cm,
+                            x=['Pred Not Hate', 'Pred Hate'],
+                            y=['True Not Hate', 'True Hate'],
+                            colorscale='Blues',
+                            text=base_cm,
+                            texttemplate='%{text}',
+                            textfont={"size": 14},
+                            showscale=False
+                        ))
+                        fig_base_cm.update_layout(height=300)
+                        st.plotly_chart(fig_base_cm, use_container_width=True)
+                        st.markdown("**⚙️ Resource Usage**")
+                        base_cpu_col, base_mem_col = st.columns(2)
+                        with base_cpu_col:
+                            st.metric("Avg CPU", f"{base_result['cpu_usage']:.2f}%")
+                            st.metric("Peak CPU", f"{base_result['peak_cpu_usage']:.2f}%")
+                        with base_mem_col:
+                            st.metric("Avg Memory", f"{base_result['memory_usage']:.2f} MB")
+                            st.metric("Peak Memory", f"{base_result['peak_memory_usage']:.2f} MB")
+                        st.markdown("**⏱️ Performance**")
+                        st.metric("Total Runtime", f"{base_result['runtime']:.2f}s")
+                        st.metric("Avg Time/Sample", f"{base_result['runtime']/file_rows:.3f}s")
 
-                    # === ENHANCED MODEL FILE RESULTS ===
-                    if is_enhanced:
-                        with enhanced_file_col:
-                            st.subheader("🟢 Enhanced Shield Results")
-                            st.markdown("**📈 Classification Metrics**")
-                            enh_fm1, enh_fm2 = st.columns(2)
-                            with enh_fm1:
-                                st.metric("F1 Score", f"{enhanced_result['f1_score']:.4f}")
-                                st.metric("Precision", f"{enhanced_result['precision']:.4f}")
-                            with enh_fm2:
-                                st.metric("Accuracy", f"{enhanced_result['accuracy']:.4f}")
-                                st.metric("Recall", f"{enhanced_result['recall']:.4f}")
-                            st.markdown("**🎯 Confusion Matrix**")
-                            enhanced_cm = enhanced_result['confusion_matrix']
-                            fig_enhanced_cm = go.Figure(data=go.Heatmap(
-                                z=enhanced_cm,
-                                x=['Pred Not Hate', 'Pred Hate'],
-                                y=['True Not Hate', 'True Hate'],
-                                colorscale='Greens',
-                                text=enhanced_cm,
-                                texttemplate='%{text}',
-                                textfont={"size": 14},
-                                showscale=False
-                            ))
-                            fig_enhanced_cm.update_layout(height=300)
-                            st.plotly_chart(fig_enhanced_cm, use_container_width=True)
-                            st.markdown("**⚙️ Resource Usage**")
-                            enh_cpu_col, enh_mem_col = st.columns(2)
-                            with enh_cpu_col:
-                                st.metric("Avg CPU", f"{enhanced_result['cpu_usage']:.2f}%")
-                                st.metric("Peak CPU", f"{enhanced_result['peak_cpu_usage']:.2f}%")
-                            with enh_mem_col:
-                                st.metric("Avg Memory", f"{enhanced_result['memory_usage']:.2f} MB")
-                                st.metric("Peak Memory", f"{enhanced_result['peak_memory_usage']:.2f} MB")
-                            st.markdown("**⏱️ Performance**")
-                            st.metric("Total Runtime", f"{enhanced_result['runtime']:.2f}s")
-                            st.metric("Avg Time/Sample", f"{enhanced_result['runtime']/file_rows:.3f}s")
-
+                # === ENHANCED MODEL FILE RESULTS ===
+                if is_enhanced:
+                    with enhanced_file_col:
+                        st.subheader("🟢 Enhanced Shield Results")
+                        st.markdown("**📈 Classification Metrics**")
+                        enh_fm1, enh_fm2 = st.columns(2)
+                        with enh_fm1:
+                            st.metric("F1 Score", f"{enhanced_result['f1_score']:.4f}")
+                            st.metric("Precision", f"{enhanced_result['precision']:.4f}")
+                        with enh_fm2:
+                            st.metric("Accuracy", f"{enhanced_result['accuracy']:.4f}")
+                            st.metric("Recall", f"{enhanced_result['recall']:.4f}")
+                        st.markdown("**🎯 Confusion Matrix**")
+                        enhanced_cm = enhanced_result['confusion_matrix']
+                        fig_enhanced_cm = go.Figure(data=go.Heatmap(
+                            z=enhanced_cm,
+                            x=['Pred Not Hate', 'Pred Hate'],
+                            y=['True Not Hate', 'True Hate'],
+                            colorscale='Greens',
+                            text=enhanced_cm,
+                            texttemplate='%{text}',
+                            textfont={"size": 14},
+                            showscale=False
+                        ))
+                        fig_enhanced_cm.update_layout(height=300)
+                        st.plotly_chart(fig_enhanced_cm, use_container_width=True)
+                        st.markdown("**⚙️ Resource Usage**")
+                        enh_cpu_col, enh_mem_col = st.columns(2)
+                        with enh_cpu_col:
+                            st.metric("Avg CPU", f"{enhanced_result['cpu_usage']:.2f}%")
+                            st.metric("Peak CPU", f"{enhanced_result['peak_cpu_usage']:.2f}%")
+                        with enh_mem_col:
+                            st.metric("Avg Memory", f"{enhanced_result['memory_usage']:.2f} MB")
+                            st.metric("Peak Memory", f"{enhanced_result['peak_memory_usage']:.2f} MB")
+                        st.markdown("**⏱️ Performance**")
+                        st.metric("Total Runtime", f"{enhanced_result['runtime']:.2f}s")
+                        st.metric("Avg Time/Sample", f"{enhanced_result['runtime']/file_rows:.3f}s")
 
     else:
         st.toast("⚠️ Please enter some text to analyze.", icon="⚠️")
